@@ -1,0 +1,217 @@
+
+
+
+1000
+10 0000 0000 = 0x200
+
+lets assume we load/start at address 0x200
+
+
+R0
+R1
+R2
+R3
+R4
+R5
+R6/SP Stack pointer
+R7/PC Program counter
+
+Addressing modes (11:9 5:3)
+
+000  Rn      Register                The operand is in Rn
+001  (Rn)    Register deferred       Rn contains the address of the operand
+010  (Rn)+   Autoincrement           Rn contains the address of the operand, then increment Rn by 1 or 2
+011  @(Rn)+  Autoincrement deferred  Rn contains the address of the address, then increment Rn by 2
+100  -(Rn)   Autodecrement           Decrement Rn by 1 or 2, then use it as the address
+101  @-(Rn)  Autodecrement deferred  Decrement Rn by 2, then use it as the address of the address
+110  X(Rn)   Index                   Rn+X is the address of the operand
+111  @X(Rn)  Index deferred          Rn+X is the address of the address
+
+Single Operand Group (CLR, CLRB, COM, COMB, INC, INCB, DEC, DECB, NEG,
+NEGB, ADC, ADCB, SBC, SBCB, TST, TSTB, ROR, RORB, ROL, ROLB, ASR, ASRB,
+ASL, ASLB, JMP, SWAB, MFPS, MTPS, SXT, XOR)
+
+FEDCBA9876543210
+OOOOOOOOOODDDDDD  O opcode D source/destination
+
+Double Operand Group (BIT, BITB, BIC, BICB, BIS, BISB, ADD, SUB, MOV,
+MOVB, CMP, CMPB)
+
+FEDCBA9876543210
+OOOOSSSSSSDDDDDD O opcode S source D destination
+
+Branch (all branch instructions)
+
+FEDCBA9876543210
+OOOOOOOOoooooooo  O opcode o offset
+
+Jump To Subroutine (JSR)
+
+FEDCBA9876543210
+       RRRDDDDDD
+
+Subroutine Return (RTS)
+
+FEDCBA9876543210
+             RRR
+
+Traps (break point, IOT, EMT, TRAP, BPT)
+
+
+FEDCBA9876543210
+OOOOOOOOOOOOOOOO  O opcode
+
+Mark (MARK)
+
+FEDCBA9876543210
+          NNNNNN
+
+Subtract 1 and branch (if=0)(SOB)
+
+FEDCBA9876543210
+       RRRNNNNNN
+
+Operate Group (HALT, WAIT, RTI, RESET, RTT, NOP)
+
+FEDCBA9876543210
+OOOOOOOOOOOOOOOO O opcode
+
+Condition Code Operators (all condition code instructions)
+
+FEDCBA9876543210
+           NZVC
+
+
+Fixed and Floating Point Arithmetic (optional EIS/FIS) (FADD, FSUB,
+FDIV, MUL, DIV, ASH, ASHC)
+
+FEDCBA9876543210
+OOOOOOOOOOOOORRR
+
+0 000 000 000 000011  BPT
+0 000 000 000 000100  IOT
+0 000 000 000 000010  RTI
+0 000 000 000 000110  RTT
+0 000 000 000 000000  HALT
+0 000 000 000 000001  WAIT
+0 000 000 000 000101  RESET
+0 000 000 001 DDDDDD  JMP
+0 000 000 010 000RRR  RTS
+
+0 000 000 010 1ccccc  set/clear condition flags
+0 000 000 010 10NZVC  nop and flag clear
+0 000 000 010 11NZVC  nop and flag set
+0 000 000 010 100000  NOP
+0 000 000 010 110000  NOP (alternate)
+0 000 000 010 100001  CLC
+0 000 000 010 100010  CLV
+0 000 000 010 100100  CLZ
+0 000 000 010 101000  CLN
+0 000 000 010 101111  CCC
+0 000 000 010 110001  SEC
+0 000 000 010 110010  SEV
+0 000 000 010 110100  SEZ
+0 000 000 010 111000  SEN
+0 000 000 010 111111  SCC
+
+0 000 000 011 DDDDDD  SWAB
+
+b 000 0bb b XXXXXXXX  branches
+0 000 000 1 XXXXXXXX  BR
+0 000 001 1 XXXXXXXX  BEQ
+0 000 001 0 XXXXXXXX  BNE
+1 000 000 1 XXXXXXXX  BMI
+1 000 000 0 XXXXXXXX  BPL
+1 000 011 1 XXXXXXXX  BCS
+1 000 011 0 XXXXXXXX  BCC
+1 000 010 1 XXXXXXXX  BVS
+1 000 010 0 XXXXXXXX  BVC
+0 000 010 1 XXXXXXXX  BLT
+0 000 010 0 XXXXXXXX  BGE
+0 000 011 1 XXXXXXXX  BLE
+0 000 011 0 XXXXXXXX  BGT
+1 000 011 0 XXXXXXXX  BHI
+1 000 001 1 XXXXXXXX  BLOS
+1 000 011 1 XXXXXXXX  BLO
+1 000 011 0 XXXXXXXX  BHIS
+
+0 000 100 RRRDDDDDD  JSR
+1 000 100 0XXXXXXXX  EMT
+1 000 100 1XXXXXXXX  TRAP
+
+B 000 101 000 DDDDDD  CLR
+B 000 101 001 DDDDDD  COM
+B 000 101 010 DDDDDD  INC
+B 000 101 011 DDDDDD  DEC
+B 000 101 100 DDDDDD  NEG
+B 000 101 101 DDDDDD  ADC
+B 000 101 110 DDDDDD  SBC
+B 000 101 111 DDDDDD  TST
+
+B 000 110 010 DDDDDD  ASR
+B 000 110 011 DDDDDD  ASL
+B 000 110 001 DDDDDD  ROL
+B 000 110 000 DDDDDD  ROR
+0 000 110 111 DDDDDD  SXT
+
+1 000 110 100 SSSSSS  MTPS
+1 000 110 111 DDDDDD  MFPS
+0 000 110 100 NNNNNN  MARK
+1 000 110 111 DDDDDD  SPL
+
+B 001 SSSSSS DDDDDD  MOV
+B 010 SSSSSS DDDDDD  CMP
+B 011 SSSSSS DDDDDD  BIT
+B 100 SSSSSS DDDDDD  BIC
+B 101 SSSSSS DDDDDD  BIS
+0 110 SSSSSS DDDDDD  ADD
+1 110 SSSSSS DDDDDD  SUB
+0 111 111 RRR XXXXXX  SOB
+
+
+
+unsigned int fun ( unsigned int a, unsigned int b )
+{
+    return(a+b);
+}
+
+
+00000000 <_fun>:
+   0:   1166            mov r5, -(sp)
+   2:   1185            mov sp, r5
+   4:   1d40 0006       mov 6(r5), r0
+   8:   6d40 0004       add 4(r5), r0
+   c:   1585            mov (sp)+, r5
+   e:   0087            rts pc
+
+   0:   1166            mov r5, -(sp)
+
+   0:   1166            mov r5, -(sp)
+
+0 001 000101 100110
+B 001 SSSSSS DDDDDD  MOV
+
+
+000  Rn      Register                The operand is in Rn
+100  -(Rn)   Autodecrement           Decrement Rn by 1 or 2, then use it as the address
+
+
+unsigned int fun ( unsigned int a, unsigned int b )
+{
+    return(a+b);
+}
+
+
+00000000 <_fun>:
+   0:   1166            mov r5, -(sp)
+   2:   1185            mov sp, r5
+   4:   1d40 0004       mov 4(r5), r0
+   8:   0a80            inc r0
+   a:   6d40 0006       add 6(r5), r0
+   e:   1585            mov (sp)+, r5
+  10:   0087            rts pc
+
+
+
+
+
