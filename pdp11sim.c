@@ -437,7 +437,7 @@ unsigned int execute ( void )
         printf("HALT\n");
         return(1);
     }
-    switch((inst>>12)&0x7)
+    switch((inst>>12)&0xF)
     {
         case 0x0:
         {
@@ -462,7 +462,6 @@ unsigned int execute ( void )
                             {
                                 if((inst&0x0038)==0x0000) //RTS
                                 {
-printf("RTS\n");
                                     //0 000 000 010 000RRR  RTS
                                     //2a:   0087            rts pc
                                     //pc = reg
@@ -492,7 +491,6 @@ printf("RTS\n");
                 }
                 case 0x4: //JSR
                 {
-printf("JSR\n");
                     //F EDC BA9 876 543210
                     //0 000 100 RRR DDDDDD  JSR
                     //10 :09f7 0014         jsr pc, 28 <_fun0+0x10>
@@ -525,7 +523,6 @@ printf("JSR\n");
         }
         case 0x1: //MOV
         {
-printf("MOV\n");
             //F EDC BA9 876 543210
             //B 001 SSSSSS DDDDDD  MOV
             //20:   1166            mov r5, -(sp)
@@ -548,7 +545,191 @@ printf("MOV\n");
             put_data(dmode,dreg,result,daddr,size);
             break;
         }
-
+        case 0x9: //MOVB
+        {
+            //F EDC BA9 876 543210
+            //B 001 SSSSSS DDDDDD  MOV
+            //20:   1166            mov r5, -(sp)
+            //22:   1185            mov sp, r5
+            //24:   1d40 0006       mov 6(r5), r0
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            size=(inst>>15)&1;
+            saddr=get_xaddr(smode,sreg,size);
+            sdata=get_data(smode,sreg,size,saddr);
+            daddr=get_xaddr(dmode,dreg,size);
+            if(dreg==7) daddr=get_data(dmode,dreg,size,daddr);
+            result=sdata&0xFF; //movb
+            if(result&0x80) result|=0xFF00; //sign extend
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            put_data(dmode,dreg,result,daddr,size);
+            break;
+        }
+        case 0x2: //CMP
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=ddata-sdata;
+            newpsw=0;
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            if(result&0x10000) newpsw|=C_FLAG;
+            if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
+                newpsw|=V_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0xA: //CMPB
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=(ddata&0xFF)-(sdata&0xFF);
+            newpsw=0;
+            if(result&0x80) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            if(result&0x100) newpsw|=C_FLAG;
+            if(((ddata&0x80)!=(sdata&0x80))&&((sdata&0x80)==(result&0x80)))
+                newpsw|=V_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0x3: //BIT
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=ddata&sdata;
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            result&=0xFFFF;
+            put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0xB: //BITB
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=(ddata&sdata)&0xFF;
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x80) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0x4: //BIC
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=ddata&(~sdata);
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0xC: //BICB
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=(ddata&(~sdata))&0xFF;
+            if(result&0x80) result|=0xFF00; //sign extend
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0x5: //BIS
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=ddata|sdata;
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
+        case 0xD: //BISB
+        {
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            result=(ddata|sdata)&0xFF;
+            if(result&0x80) result|=0xFF00; //sign extend
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            //result&=0xFFFF;
+            //put_data(dmode,dreg,result,daddr,0);
+            break;
+        }
 
         case 0x6: //ADD/SUB
         {

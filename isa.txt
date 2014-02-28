@@ -94,6 +94,161 @@ stack pointer register.
 
 -- ADDRESSING MODES --
 
+Most data in a program is structured in some way -- in a table, in a
+stack, in a table of addresses, or perhaps a small set of frequenty
+used variables local to a limited region of a program.  The PDP-11
+handles these common data structures with addressing modes specifically
+designed for each kind of access.  In addition, addressing for unstructured
+data is general enough to permit direct random access to all of core.
+Memory is not proken up into pages and fields.
+
+Addressing in the PDP-11 is done through the general registers.  Programs
+requiring several stacks can use the general registers for stack pointers.
+Those requiring many local variables can use general registers as
+accumulators.  The general registers can be used interchangeably as index
+registers or sequential list pointers to access tabular data.  Address
+arithmetic may be done directly in the general registers.
+
+ADDRESS FIELDS
+PDP-11 instruction words contain a 6-bit address field divided into two
+subfields selecting the general register and the mode generating the
+effective address.
+
+FEDCBA9876543210
+xxxxxxxxxxMMMRRR
+MMM mode
+RRR register
+
+The register subfield specifies which of the eight general registers is
+to be used in the address calculation.  The mode subfield indicates how
+this register is to be used in determining the operand.  These modes will
+be described in the following paragraphs.
+
+
+000nnn  Rn      Register                The operand is in Rn
+001nnn  (Rn)    Register deferred       Rn contains the address of the operand
+010nnn  (Rn)+   Autoincrement           Rn contains the address of the operand, then increment Rn by 1 or 2
+011nnn  @(Rn)+  Autoincrement deferred  Rn contains the address of the address, then increment Rn by 2
+100nnn  -(Rn)   Autodecrement           Decrement Rn by 1 or 2, then use it as the address
+101nnn  @-(Rn)  Autodecrement deferred  Decrement Rn by 2, then use it as the address of the address
+110nnn  X(Rn)   Index                   Rn+X is the address of the operand
+111nnn  @X(Rn)  Index deferred          Rn+X is the address of the address
+
+When the PC is used as a general register, four of the addressing modes
+have these results
+
+
+
+010111  #immed  Immediate               The operand is contained in the instruction
+011111  (#addr) Absolute                The absolute address is contained in the instruction
+110111  addr    Relative                An extra word in the instruction is added to PC+2 to give the address
+111111  (a)     Relative Deferred       An extra word in the instruction is added to PC+2 to give the address of the address
+
+
+
+ADD src,dst
+
+FEDCBA9876543210
+0110SSSSSSDDDDDD
+
+Operation:
+    dst = dst + src
+
+Condition Codes:
+    Z: set if result = 0; cleared otherwise
+    N: set if result < 0; cleared otherwise
+    C: set if there was a carry from the most significant bit of the
+        result; cleared otherwise
+    V: set if there was an arithmetic (signed) overflow as a result of
+        the operation, that is, if both operands were of the same sign
+        and the result was of the opposite sign; cleared otherwise
+
+Description:  Adds the source operand to the destination operand and
+stores the result at the destination address.  The original contents of
+the destination are lost.  The contents of the source are not affected.
+
+
+
+CMP(B) src,dst
+
+FEDCBA9876543210
+B010SSSSSSDDDDDD
+
+Operation:
+    result = dst - src  [result = dst + (~src) + 1]
+
+Condition Codes:
+    Z: set if result = 0; cleared otherwise
+    N: set if result < 0; cleared otherwise
+    C: set if there was a carry from the most significant bit of the
+        result; cleared otherwise
+    V: set if there was an arithmetic (signed) overflow as a result of
+        the operation, that is, if both operands were of the same sign
+        and the result was of the opposite sign; cleared otherwise
+
+Description:  Arithmetically compares the source and destination operands.
+Affects neither operand.  The only action is to set the condition codes
+appropriately.
+
+
+
+
+
+
+MOV src,dst
+
+FEDCBA9876543210
+0001SSSSSSDDDDDD
+
+Operation:
+    dst = src
+
+Condition Codes:
+    Z: set if src = 0; cleared otherwise
+    N: set if src < 0; cleared otherwise
+    C: not affected
+    V: cleared
+
+Description:  Moves the source operand to the destination location.  The
+previous contents of the destination are lost.  The contents of the
+source are not affected.
+
+The MOV instruction is a generalization of load, store, setup, push, pop,
+and interregister transfer operations.
+
+
+SUB src,dst
+
+FEDCBA9876543210
+0111SSSSSSDDDDDD
+
+Operation:
+    dst = dst - src  [dst = dst + (~src) + 1]
+
+Condition Codes:
+    Z: set if result = 0; cleared otherwise
+    N: set if result < 0; cleared otherwise
+    C: set if there was a carry from the most significant bit of the
+        result; cleared otherwise
+    V: set if there was an arithmetic (signed) overflow as a result of
+        the operation, that is, if both operands were of the same sign
+        and the result was of the opposite sign; cleared otherwise
+
+Description:  Subtracts the source operand from the destination operand
+and stores the result at the destination address.  The original contents
+of the destination are lost.  The contents of the source are not affected.
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
