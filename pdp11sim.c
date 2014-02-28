@@ -48,7 +48,7 @@ unsigned int reg[8];
 #define C_FLAG 1
 
 unsigned int psw;
-unsigned int xaddr;
+//unsigned int xaddr;
 
 unsigned int start_address;
 
@@ -140,7 +140,9 @@ void mem_write_word ( unsigned int address, unsigned int data )
 #ifdef WATCH_WRITE_WORD
     printf("mem_write_word(0x%04X,0x%04X);\n",address,data);
 #endif
-    mem[address]=data;
+    mem[address+1]=(data>>8)&0xFF;
+    mem[address+0]=(data>>0)&0xFF;
+    if(address==0xF000) printf("--- show 0x%04X\n",data);
 }
 //-------------------------------------------------------------------
 unsigned int read_register ( unsigned int rn )
@@ -180,6 +182,29 @@ void set_new_psw ( unsigned int x )
 #endif
 }
 //-------------------------------------------------------------------
+void push ( unsigned int data )
+{
+    unsigned int sp;
+
+    sp=read_register(6);
+    sp-=2;
+    write_register(6,sp);
+    mem_write_word(sp,data);
+}
+//-------------------------------------------------------------------
+unsigned int pop ( void )
+{
+    unsigned int sp;
+    unsigned int data;
+
+    sp=read_register(6);
+    data=mem_read_word(sp);
+    sp+=2;
+    write_register(6,sp);
+    return(data);
+}
+//-------------------------------------------------------------------
+//-------------------------------------------------------------------
 void reset_cpu ( void )
 {
     printf("\n---- reset ----\n");
@@ -201,28 +226,27 @@ void reset_cpu ( void )
     write_reg_count=0;
 }
 //-------------------------------------------------------------------
-unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size )
+unsigned int get_xaddr ( unsigned int xmode, unsigned int xreg, unsigned int size )
 {
-    unsigned int data;
     unsigned int rdata;
     unsigned int pc;
+    unsigned int xaddr;
 
     xmode&=7;
     xreg&=7;
+    xaddr=0xFFFF;
     switch(xmode)
     {
         case 0:
         {
             //OPR Rn
-            data=read_register(xreg);
             break;
         }
         case 1:
         {
             //OPR (Rn)
-            data=read_register(xreg);
-            if(size) data=mem_read_byte(data);
-            else     data=mem_read_word(data);
+            rdata=read_register(xreg);
+            xaddr=rdata;
             break;
         }
         case 2:
@@ -230,15 +254,14 @@ unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size
             if(xreg==7) size=0;
             //OPR (Rn)+;
             rdata=read_register(xreg);
+            xaddr=rdata;
             if(size)
             {
-                data=mem_read_byte(rdata);
                 rdata++;
                 write_register(xreg,rdata);
             }
             else
             {
-                data=mem_read_word(rdata);
                 rdata+=2;
                 write_register(xreg,rdata);
             }
@@ -248,15 +271,7 @@ unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size
         {
             if(xreg==7) size=0;
             rdata=read_register(xreg);
-            data=mem_read_word(rdata);
-            if(size)
-            {
-                data=mem_read_byte(data);
-            }
-            else
-            {
-                data=mem_read_word(data);
-            }
+            xaddr=mem_read_word(rdata);
             rdata+=2;
             write_register(xreg,rdata);
             break;
@@ -268,14 +283,13 @@ unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size
             {
                 rdata--;
                 write_register(xreg,rdata);
-                data=mem_read_byte(rdata);
             }
             else
             {
                 rdata-=2;
                 write_register(xreg,rdata);
-                data=mem_read_word(rdata);
             }
+            xaddr=rdata;
             break;
         }
         case 5:
@@ -283,15 +297,7 @@ unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size
             rdata=read_register(xreg);
             rdata-=2;
             write_register(xreg,rdata);
-            data=mem_read_word(rdata);
-            if(size)
-            {
-                data=mem_read_byte(data);
-            }
-            else
-            {
-                data=mem_read_word(data);
-            }
+            xaddr=mem_read_word(rdata);
             break;
         }
         case 6:
@@ -299,18 +305,11 @@ unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size
             if(xreg==7) size=0;
             pc=read_register(7);
             xaddr=mem_read_word(pc);
-            pc+=2; //here or after?
-            write_register(7,pc); //here or after, what if xreg is r7?
+            pc+=2;
+            write_register(7,pc);
+            //must be after the write register in case xreg is the pc
             rdata=read_register(xreg);
-            data=rdata+xaddr;
-            if(size)
-            {
-                data=mem_read_byte(data);
-            }
-            else
-            {
-                data=mem_read_word(data);
-            }
+            xaddr+=rdata;
             break;
         }
         case 7:
@@ -318,25 +317,51 @@ unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size
             if(xreg==7) size=0;
             pc=read_register(7);
             xaddr=mem_read_word(pc);
-            pc+=2; //here or after?
-            write_register(7,pc); //here or after, what if xreg is r7?
+            pc+=2;
+            write_register(7,pc);
             rdata=read_register(xreg);
-            data=rdata+xaddr;
-            data=mem_read_word(data);
-            if(size)
-            {
-                data=mem_read_byte(data);
-            }
-            else
-            {
-                data=mem_read_word(data);
-            }
+            xaddr+=rdata;
+            xaddr=mem_read_word(xaddr);
+            break;
+        }
+    }
+    return(xaddr);
+}
+//-------------------------------------------------------------------
+unsigned int get_data ( unsigned int xmode, unsigned int xreg, unsigned int size, unsigned int xaddr )
+{
+    unsigned int data;
+
+    xmode&=7;
+    xreg&=7;
+    switch(xmode)
+    {
+        case 0:
+        {
+            data=read_register(xreg);
+            break;
+        }
+        case 1:
+        case 4:
+        case 5:
+        {
+            if(size) data=mem_read_byte(xaddr);
+            else     data=mem_read_word(xaddr);
+            break;
+        }
+        case 2:
+        case 3:
+        case 6:
+        case 7:
+        {
+            if(xreg==7) size=0;
+            if(size) data=mem_read_byte(xaddr);
+            else     data=mem_read_word(xaddr);
             break;
         }
     }
     return(data);
 }
-//-------------------------------------------------------------------
 //-------------------------------------------------------------------
 unsigned int put_data ( unsigned int xmode, unsigned int xreg, unsigned int data, unsigned int xaddr, unsigned int size )
 {
@@ -354,117 +379,21 @@ unsigned int put_data ( unsigned int xmode, unsigned int xreg, unsigned int data
             break;
         }
         case 1:
+        case 4:
+        case 5:
         {
-            rdata=read_register(xreg);
-            if(size) mem_write_byte(rdata,data);
-            else     mem_write_word(rdata,data);
+            if(size) mem_write_byte(xaddr,data);
+            else     mem_write_word(xaddr,data);
             break;
         }
         case 2:
-        {
-            if(xreg==7) size=0;
-            rdata=read_register(xreg);
-            if(size)
-            {
-                mem_write_byte(rdata,data);
-                rdata++;
-                write_register(xreg,rdata);
-            }
-            else
-            {
-                mem_write_word(rdata,data);
-                rdata+=2;
-                write_register(xreg,rdata);
-            }
-            break;
-        }
         case 3:
-        {
-            if(xreg==7) size=0;
-            rdata=read_register(xreg);
-            xdata=mem_read_word(rdata);
-            if(size)
-            {
-                mem_write_byte(xdata,data);
-            }
-            else
-            {
-                mem_write_word(xdata,data);
-            }
-            rdata+=2;
-            write_register(xreg,rdata);
-            break;
-        }
-        case 4:
-        {
-            rdata=read_register(xreg);
-            if(size)
-            {
-                rdata--;
-                write_register(xreg,rdata);
-                mem_write_byte(rdata,data);
-            }
-            else
-            {
-                rdata-=2;
-                write_register(xreg,rdata);
-                mem_write_word(rdata,data);
-            }
-            break;
-        }
-        case 5:
-        {
-            rdata=read_register(xreg);
-            rdata-=2;
-            write_register(xreg,rdata);
-            xdata=mem_read_word(rdata);
-            if(size)
-            {
-                mem_write_byte(xdata,data);
-            }
-            else
-            {
-                mem_write_word(xdata,data);
-            }
-            break;
-        }
         case 6:
-        {
-            if(xreg==7) size=0;
-            //pc=read_register(7);
-            //xaddr=mem_read_word(pc);
-            //pc+=2; //here or after?
-            //write_register(7,pc); //here or after, what if xreg is r7?
-            rdata=read_register(xreg);
-            xdata=rdata+xaddr;
-            if(size)
-            {
-                mem_write_byte(xdata,data);
-            }
-            else
-            {
-                mem_write_word(xdata,data);
-            }
-            break;
-        }
         case 7:
         {
             if(xreg==7) size=0;
-            //pc=read_register(7);
-            //xaddr=mem_read_word(pc);
-            //pc+=2; //here or after?
-            //write_register(7,pc); //here or after, what if xreg is r7?
-            rdata=read_register(xreg);
-            xdata=rdata+xaddr;
-            xdata=mem_read_word(xdata);
-            if(size)
-            {
-                mem_write_byte(xdata,data);
-            }
-            else
-            {
-                mem_write_word(xdata,data);
-            }
+            if(size) mem_write_byte(xaddr,data);
+            else     mem_write_word(xaddr,data);
             break;
         }
     }
@@ -481,11 +410,13 @@ unsigned int execute ( void )
     unsigned int sdata;
     unsigned int dmode;
     unsigned int dreg;
+    unsigned int size;
     unsigned int ddata;
     unsigned int saddr;
     unsigned int daddr;
     unsigned int result;
     unsigned int newpsw;
+    unsigned int dest;
 
 
     //pc=reg[7]; //hide no stats
@@ -500,48 +431,163 @@ unsigned int execute ( void )
     pc+=2;
     //reg[7]=pc; //hide no stats
     write_register(7,pc);
-    switch((inst>>12)&0xF)
+
+    if(inst==0x0000)
     {
-        case 0x6: //ADD
+        printf("HALT\n");
+        return(1);
+    }
+    switch((inst>>12)&0x7)
+    {
+        case 0x0:
         {
-            smode=(inst>>9)&7;
-            sreg=(inst>>6)&7;
-            dmode=(inst>>3)&7;
-            dreg=(inst>>0)&7;
-            //408:  6cf4 0004 0006  add 4(r3), 6(r4)
-            sdata=get_data(smode,sreg,0); saddr=xaddr;
-            ddata=get_data(dmode,dreg,0); daddr=xaddr;
-            result=ddata+sdata;
-            newpsw=0;
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            if(result&0x10000) newpsw|=C_FLAG;
-            if(((ddata&0x8000)==(sdata&0x8000))&&((sdata&0x8000)!=(result&0x8000)))
-                newpsw|=V_FLAG;
-            set_new_psw(newpsw);
-            result&=0xFFFF;
-            put_data(dmode,dreg,result,daddr,0);
+            switch((inst>>9)&0x7)
+            {
+                case 0x0:
+                {
+                    //F EDC BA9 8 76543210
+                    //0 000 000 1 XXXXXXXX  BR
+                    if(inst&0x0100)
+                    {
+                        dest=inst&0xFF;
+                        if(dest&0x80) dest|=0xFF00;
+                        dest<<=1;
+                        pc+=dest;
+                    }
+                    else
+                    {
+                        switch((inst>>6)&0x7)
+                        {
+                            case 0x2:
+                            {
+                                if((inst&0x0038)==0x0000) //RTS
+                                {
+printf("RTS\n");
+                                    //0 000 000 010 000RRR  RTS
+                                    //2a:   0087            rts pc
+                                    //pc = reg
+                                    //pop reg
+                                    //psw not affected
+                                    dreg=(inst>>0)&7;
+                                    ddata=read_register(dreg);
+                                    write_register(7,ddata);
+                                    ddata=pop();
+                                    write_register(dreg,ddata);
+                                    break;
+                                }
+
+
+
+                                printf("Error unknown opcode 0x%04X\n",inst);
+                                return(1);
+                            }
+                            default:
+                            {
+                                printf("Error unknown opcode 0x%04X\n",inst);
+                                return(1);
+                            }
+                        }
+                    }
+                    break;
+                }
+                case 0x4: //JSR
+                {
+printf("JSR\n");
+                    //F EDC BA9 876 543210
+                    //0 000 100 RRR DDDDDD  JSR
+                    //10 :09f7 0014         jsr pc, 28 <_fun0+0x10>
+                    //0 000 100 111 110 111 jsr pc,x(pc)
+
+                    //tmp = dst
+                    //push reg
+                    //reg = pc
+                    //pc = tmp
+                    //psw not affected
+
+                    sreg=(inst>>6)&7;
+                    dmode=(inst>>3)&7;
+                    dreg=(inst>>0)&7;
+                    dest=get_xaddr(dmode,dreg,0);
+                    sdata=read_register(sreg);
+                    push(sdata);
+                    pc=read_register(7);
+                    write_register(sreg,pc);
+                    write_register(7,dest);
+                    break;
+                }
+                default:
+                {
+                    printf("Error unknown opcode 0x%04X\n",inst);
+                    return(1);
+                }
+            }
             break;
         }
-        case 0xE: //SUB
+        case 0x1: //MOV
+        {
+printf("MOV\n");
+            //F EDC BA9 876 543210
+            //B 001 SSSSSS DDDDDD  MOV
+            //20:   1166            mov r5, -(sp)
+            //22:   1185            mov sp, r5
+            //24:   1d40 0006       mov 6(r5), r0
+            smode=(inst>>9)&7;
+            sreg=(inst>>6)&7;
+            dmode=(inst>>3)&7;
+            dreg=(inst>>0)&7;
+            size=(inst>>15)&1;
+            saddr=get_xaddr(smode,sreg,size);
+            sdata=get_data(smode,sreg,size,saddr);
+            daddr=get_xaddr(dmode,dreg,size);
+            if(dreg==7) daddr=get_data(dmode,dreg,size,daddr);
+            result=sdata; //mov
+            newpsw=psw&(C_FLAG); //preserve C, clear V
+            if(result&0x8000) newpsw|=N_FLAG;
+            if(result==0) newpsw|=Z_FLAG;
+            set_new_psw(newpsw);
+            put_data(dmode,dreg,result,daddr,size);
+            break;
+        }
+
+
+        case 0x6: //ADD/SUB
         {
             smode=(inst>>9)&7;
             sreg=(inst>>6)&7;
             dmode=(inst>>3)&7;
             dreg=(inst>>0)&7;
-            //e:    e000            sub r0, r0
-            sdata=get_data(smode,sreg,0); saddr=xaddr;
-            ddata=get_data(dmode,dreg,0); daddr=xaddr;
-            result=ddata-sdata;
-            newpsw=0;
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            if(result&0x10000) newpsw|=C_FLAG;
-            if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
-                newpsw|=V_FLAG;
-            set_new_psw(newpsw);
-            result&=0xFFFF;
-            put_data(dmode,dreg,result,daddr,0);
+            saddr=get_xaddr(smode,sreg,0);
+            sdata=get_data(smode,sreg,0,saddr);
+            daddr=get_xaddr(dmode,dreg,0);
+            ddata=get_data(dmode,dreg,0,daddr);
+            if(inst&0x8000) //SUB
+            {
+                //e000            sub r0, r0
+                result=ddata-sdata;
+                newpsw=0;
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                if(result&0x10000) newpsw|=C_FLAG;
+                if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
+                    newpsw|=V_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
+            else //ADD
+            {
+                //6cf4 0004 0006  add 4(r3), 6(r4)
+                result=ddata+sdata;
+                newpsw=0;
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                if(result&0x10000) newpsw|=C_FLAG;
+                if(((ddata&0x8000)==(sdata&0x8000))&&((sdata&0x8000)!=(result&0x8000)))
+                    newpsw|=V_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
             break;
         }
         default:
