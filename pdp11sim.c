@@ -437,12 +437,125 @@ unsigned int execute ( void )
         printf("HALT\n");
         return(1);
     }
-    switch((inst>>12)&0xF)
+    switch((inst>>12)&0x7)
     {
         case 0x0:
         {
             switch((inst>>9)&0x7)
             {
+                case 0x1:
+                {
+                    if(inst&0x8000)
+                    {
+                        if(inst&0x0100) //BLOS
+                        {
+                            //F EDC BA9 8 76543210
+                            //1 000 001 1 XXXXXXXX  BLOS
+                            if(psw&(Z_FLAG|C_FLAG))
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else
+                        {
+                            printf("Error unknown opcode 0x%04X\n",inst);
+                            return(1);
+                        }
+                    }
+                    else
+                    {
+                        //F EDC BA9 8 76543210
+                        //0 000 001 1 XXXXXXXX  BEQ
+                        //0 000 001 0 XXXXXXXX  BNE
+                        if(inst&0x0100) //BEQ
+                        {
+                            if((psw&Z_FLAG)!=0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BNE
+                        {
+                            if((psw&Z_FLAG)==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    break;
+                }
+                case 0x2:
+                {
+                    if(inst&0x8000)
+                    {
+                        //1 000 010 1 XXXXXXXX  BVS
+                        //1 000 010 0 XXXXXXXX  BVC
+                        if(inst&0x0100) //BVS
+                        {
+                            if((psw&V_FLAG)!=0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BVC
+                        {
+                            if((psw&V_FLAG)==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //F EDC BA9 8 76543210
+                        //0 000 010 1 XXXXXXXX  BLT
+                        //0 000 010 0 XXXXXXXX  BGE
+                        if(inst&0x0100) //BLT
+                        {
+                            result=0;
+                            if(psw&N_FLAG) result++;
+                            if(psw&V_FLAG) result++;
+                            if(result==1)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BGE
+                        {
+                            result=0;
+                            if(psw&N_FLAG) result++;
+                            if(psw&V_FLAG) result++;
+                            result&=1;
+                            if(result==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    break;
+                }
+
                 case 0x0:
                 {
                     //F EDC BA9 8 76543210
@@ -521,13 +634,8 @@ unsigned int execute ( void )
             }
             break;
         }
-        case 0x1: //MOV
+        case 0x1: //MOV(B)
         {
-            //F EDC BA9 876 543210
-            //B 001 SSSSSS DDDDDD  MOV
-            //20:   1166            mov r5, -(sp)
-            //22:   1185            mov sp, r5
-            //24:   1d40 0006       mov 6(r5), r0
             smode=(inst>>9)&7;
             sreg=(inst>>6)&7;
             dmode=(inst>>3)&7;
@@ -537,40 +645,38 @@ unsigned int execute ( void )
             sdata=get_data(smode,sreg,size,saddr);
             daddr=get_xaddr(dmode,dreg,size);
             if(dreg==7) daddr=get_data(dmode,dreg,size,daddr);
-            result=sdata; //mov
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            put_data(dmode,dreg,result,daddr,size);
+            if(inst&0x8000) //MOVB
+            {
+                //F EDC BA9 876 543210
+                //B 001 SSSSSS DDDDDD  MOV
+                //20:   1166            mov r5, -(sp)
+                //22:   1185            mov sp, r5
+                //24:   1d40 0006       mov 6(r5), r0
+                result=sdata&0xFF; //movb
+                if(result&0x80) result|=0xFF00; //sign extend
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                put_data(dmode,dreg,result,daddr,size);
+            }
+            else //MOV
+            {
+                //F EDC BA9 876 543210
+                //B 001 SSSSSS DDDDDD  MOV
+                //20:   1166            mov r5, -(sp)
+                //22:   1185            mov sp, r5
+                //24:   1d40 0006       mov 6(r5), r0
+                result=sdata; //mov
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                put_data(dmode,dreg,result,daddr,size);
+            }
             break;
         }
-        case 0x9: //MOVB
-        {
-            //F EDC BA9 876 543210
-            //B 001 SSSSSS DDDDDD  MOV
-            //20:   1166            mov r5, -(sp)
-            //22:   1185            mov sp, r5
-            //24:   1d40 0006       mov 6(r5), r0
-            smode=(inst>>9)&7;
-            sreg=(inst>>6)&7;
-            dmode=(inst>>3)&7;
-            dreg=(inst>>0)&7;
-            size=(inst>>15)&1;
-            saddr=get_xaddr(smode,sreg,size);
-            sdata=get_data(smode,sreg,size,saddr);
-            daddr=get_xaddr(dmode,dreg,size);
-            if(dreg==7) daddr=get_data(dmode,dreg,size,daddr);
-            result=sdata&0xFF; //movb
-            if(result&0x80) result|=0xFF00; //sign extend
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            put_data(dmode,dreg,result,daddr,size);
-            break;
-        }
-        case 0x2: //CMP
+        case 0x2: //CMP(B)
         {
             smode=(inst>>9)&7;
             sreg=(inst>>6)&7;
@@ -580,19 +686,31 @@ unsigned int execute ( void )
             sdata=get_data(smode,sreg,0,saddr);
             daddr=get_xaddr(dmode,dreg,0);
             ddata=get_data(dmode,dreg,0,daddr);
-            result=ddata-sdata;
-            newpsw=0;
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            if(result&0x10000) newpsw|=C_FLAG;
-            if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
-                newpsw|=V_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
+            if(inst&0x8000) //CMPB
+            {
+                result=(ddata&0xFF)-(sdata&0xFF);
+                newpsw=0;
+                if(result&0x80) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                if(result&0x100) newpsw|=C_FLAG;
+                if(((ddata&0x80)!=(sdata&0x80))&&((sdata&0x80)==(result&0x80)))
+                    newpsw|=V_FLAG;
+                set_new_psw(newpsw);
+            }
+            else //CMP
+            {
+                result=ddata-sdata;
+                newpsw=0;
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                if(result&0x10000) newpsw|=C_FLAG;
+                if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
+                    newpsw|=V_FLAG;
+                set_new_psw(newpsw);
+            }
             break;
         }
-        case 0xA: //CMPB
+        case 0x3: //BITB
         {
             smode=(inst>>9)&7;
             sreg=(inst>>6)&7;
@@ -602,54 +720,24 @@ unsigned int execute ( void )
             sdata=get_data(smode,sreg,0,saddr);
             daddr=get_xaddr(dmode,dreg,0);
             ddata=get_data(dmode,dreg,0,daddr);
-            result=(ddata&0xFF)-(sdata&0xFF);
-            newpsw=0;
-            if(result&0x80) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            if(result&0x100) newpsw|=C_FLAG;
-            if(((ddata&0x80)!=(sdata&0x80))&&((sdata&0x80)==(result&0x80)))
-                newpsw|=V_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
-            break;
-        }
-        case 0x3: //BIT
-        {
-            smode=(inst>>9)&7;
-            sreg=(inst>>6)&7;
-            dmode=(inst>>3)&7;
-            dreg=(inst>>0)&7;
-            saddr=get_xaddr(smode,sreg,0);
-            sdata=get_data(smode,sreg,0,saddr);
-            daddr=get_xaddr(dmode,dreg,0);
-            ddata=get_data(dmode,dreg,0,daddr);
-            result=ddata&sdata;
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            result&=0xFFFF;
-            put_data(dmode,dreg,result,daddr,0);
-            break;
-        }
-        case 0xB: //BITB
-        {
-            smode=(inst>>9)&7;
-            sreg=(inst>>6)&7;
-            dmode=(inst>>3)&7;
-            dreg=(inst>>0)&7;
-            saddr=get_xaddr(smode,sreg,0);
-            sdata=get_data(smode,sreg,0,saddr);
-            daddr=get_xaddr(dmode,dreg,0);
-            ddata=get_data(dmode,dreg,0,daddr);
-            result=(ddata&sdata)&0xFF;
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x80) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
+            if(inst&0x8000)
+            {
+                result=(ddata&sdata)&0xFF;
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x80) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+            }
+            else //BIT
+            {
+                result=ddata&sdata;
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
             break;
         }
         case 0x4: //BIC
@@ -662,33 +750,27 @@ unsigned int execute ( void )
             sdata=get_data(smode,sreg,0,saddr);
             daddr=get_xaddr(dmode,dreg,0);
             ddata=get_data(dmode,dreg,0,daddr);
-            result=ddata&(~sdata);
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
-            break;
-        }
-        case 0xC: //BICB
-        {
-            smode=(inst>>9)&7;
-            sreg=(inst>>6)&7;
-            dmode=(inst>>3)&7;
-            dreg=(inst>>0)&7;
-            saddr=get_xaddr(smode,sreg,0);
-            sdata=get_data(smode,sreg,0,saddr);
-            daddr=get_xaddr(dmode,dreg,0);
-            ddata=get_data(dmode,dreg,0,daddr);
-            result=(ddata&(~sdata))&0xFF;
-            if(result&0x80) result|=0xFF00; //sign extend
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
+            if(inst&0x8000) //BICB
+            {
+                result=(ddata&(~sdata))&0xFF;
+                if(result&0x80) result|=0xFF00; //sign extend
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
+            else
+            {
+                result=(ddata&(~sdata))&0xFFFF;
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
             break;
         }
         case 0x5: //BIS
@@ -701,36 +783,29 @@ unsigned int execute ( void )
             sdata=get_data(smode,sreg,0,saddr);
             daddr=get_xaddr(dmode,dreg,0);
             ddata=get_data(dmode,dreg,0,daddr);
-            result=ddata|sdata;
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
+            if(inst&0x8000) //BISB
+            {
+                result=(ddata|sdata)&0xFF;
+                if(result&0x80) result|=0xFF00; //sign extend
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
+            else //BIS
+            {
+                result=ddata|sdata;
+                newpsw=psw&(C_FLAG); //preserve C, clear V
+                if(result&0x8000) newpsw|=N_FLAG;
+                if(result==0) newpsw|=Z_FLAG;
+                set_new_psw(newpsw);
+                result&=0xFFFF;
+                put_data(dmode,dreg,result,daddr,0);
+            }
             break;
         }
-        case 0xD: //BISB
-        {
-            smode=(inst>>9)&7;
-            sreg=(inst>>6)&7;
-            dmode=(inst>>3)&7;
-            dreg=(inst>>0)&7;
-            saddr=get_xaddr(smode,sreg,0);
-            sdata=get_data(smode,sreg,0,saddr);
-            daddr=get_xaddr(dmode,dreg,0);
-            ddata=get_data(dmode,dreg,0,daddr);
-            result=(ddata|sdata)&0xFF;
-            if(result&0x80) result|=0xFF00; //sign extend
-            newpsw=psw&(C_FLAG); //preserve C, clear V
-            if(result&0x8000) newpsw|=N_FLAG;
-            if(result==0) newpsw|=Z_FLAG;
-            set_new_psw(newpsw);
-            //result&=0xFFFF;
-            //put_data(dmode,dreg,result,daddr,0);
-            break;
-        }
-
         case 0x6: //ADD/SUB
         {
             smode=(inst>>9)&7;
