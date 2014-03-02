@@ -42,10 +42,12 @@ unsigned char linedata[0x110];
 
 unsigned int reg[8];
 
-#define N_FLAG 8
-#define Z_FLAG 4
-#define V_FLAG 2
-#define C_FLAG 1
+//#define N_FLAG 8
+//#define Z_FLAG 4
+//#define V_FLAG 2
+//#define C_FLAG 1
+
+unsigned int N,Z,V,C;
 
 unsigned int psw;
 //unsigned int xaddr;
@@ -169,15 +171,23 @@ unsigned int write_register ( unsigned int rn, unsigned int data)
     reg[rn]=data;
 }
 //-------------------------------------------------------------------
-void set_new_psw ( unsigned int x )
+void set_new_psw ( void  )
 {
-    psw=x;
+//#define N_FLAG 8
+//#define Z_FLAG 4
+//#define V_FLAG 2
+//#define C_FLAG 1
+    psw&=~0xF;
+    if(N) psw|=8;
+    if(Z) psw|=4;
+    if(V) psw|=2;
+    if(C) psw|=1;
 #ifdef WATCH_PSW
     printf("psw=0x%04X ",psw);
-    if(psw&N_FLAG) printf("N"); else printf("n");
-    if(psw&Z_FLAG) printf("Z"); else printf("z");
-    if(psw&V_FLAG) printf("V"); else printf("v");
-    if(psw&C_FLAG) printf("C"); else printf("c");
+    if(N) printf("N"); else printf("n");
+    if(Z) printf("Z"); else printf("z");
+    if(V) printf("V"); else printf("v");
+    if(C) printf("C"); else printf("c");
     printf("\n");
 #endif
 }
@@ -439,124 +449,11 @@ unsigned int execute ( void )
     }
     switch((inst>>12)&0x7)
     {
-        case 0x0:
+        case 0x0: //x 000
         {
             switch((inst>>9)&0x7)
             {
-                case 0x1:
-                {
-                    if(inst&0x8000)
-                    {
-                        if(inst&0x0100) //BLOS
-                        {
-                            //F EDC BA9 8 76543210
-                            //1 000 001 1 XXXXXXXX  BLOS
-                            if(psw&(Z_FLAG|C_FLAG))
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                        else
-                        {
-                            printf("Error unknown opcode 0x%04X\n",inst);
-                            return(1);
-                        }
-                    }
-                    else
-                    {
-                        //F EDC BA9 8 76543210
-                        //0 000 001 1 XXXXXXXX  BEQ
-                        //0 000 001 0 XXXXXXXX  BNE
-                        if(inst&0x0100) //BEQ
-                        {
-                            if((psw&Z_FLAG)!=0)
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                        else //BNE
-                        {
-                            if((psw&Z_FLAG)==0)
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                    }
-                    break;
-                }
-                case 0x2:
-                {
-                    if(inst&0x8000)
-                    {
-                        //1 000 010 1 XXXXXXXX  BVS
-                        //1 000 010 0 XXXXXXXX  BVC
-                        if(inst&0x0100) //BVS
-                        {
-                            if((psw&V_FLAG)!=0)
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                        else //BVC
-                        {
-                            if((psw&V_FLAG)==0)
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        //F EDC BA9 8 76543210
-                        //0 000 010 1 XXXXXXXX  BLT
-                        //0 000 010 0 XXXXXXXX  BGE
-                        if(inst&0x0100) //BLT
-                        {
-                            result=0;
-                            if(psw&N_FLAG) result++;
-                            if(psw&V_FLAG) result++;
-                            if(result==1)
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                        else //BGE
-                        {
-                            result=0;
-                            if(psw&N_FLAG) result++;
-                            if(psw&V_FLAG) result++;
-                            result&=1;
-                            if(result==0)
-                            {
-                                dest=inst&0xFF;
-                                if(dest&0x80) dest|=0xFF00;
-                                dest<<=1;
-                                pc+=dest;
-                            }
-                        }
-                    }
-                    break;
-                }
-
-                case 0x0:
+                case 0x0: //x 000 000
                 {
                     //F EDC BA9 8 76543210
                     //0 000 000 1 XXXXXXXX  BR
@@ -602,12 +499,180 @@ unsigned int execute ( void )
                     }
                     break;
                 }
-                case 0x4: //JSR
+                case 0x1: //x 000 001
                 {
-                    //F EDC BA9 876 543210
+                    if(inst&0x8000)
+                    {
+                        if(inst&0x0100) //BLOS
+                        {
+                            //F EDC BA9 8 76543210
+                            //1 000 001 1 XXXXXXXX  BLOS
+                            if(Z||C)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else
+                        {
+                            printf("Error unknown opcode 0x%04X\n",inst);
+                            return(1);
+                        }
+                    }
+                    else
+                    {
+                        //0 000 001 1 XXXXXXXX  BEQ
+                        //0 000 001 0 XXXXXXXX  BNE
+                        if(inst&0x0100) //BEQ
+                        {
+                            if(Z!=0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BNE
+                        {
+                            if(Z==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    break;
+                }
+                case 0x2: //x 000 010
+                {
+                    if(inst&0x8000)
+                    {
+                        //1 000 010 1 XXXXXXXX  BVS
+                        //1 000 010 0 XXXXXXXX  BVC
+                        if(inst&0x0100) //BVS
+                        {
+                            if(V!=0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BVC
+                        {
+                            if(V==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //0 000 010 1 XXXXXXXX  BLT
+                        //0 000 010 0 XXXXXXXX  BGE
+                        if(inst&0x0100) //BLT
+                        {
+                            result=0;
+                            if(N) result++;
+                            if(V) result++;
+                            if(result==1)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BGE
+                        {
+                            result=0;
+                            if(N) result++;
+                            if(V) result++;
+                            result&=1;
+                            if(result==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    break;
+                }
+                case 0x3: //x 000 011
+                {
+                    if(inst&0x8000)
+                    {
+                        //1 000 011 1 XXXXXXXX  BCS
+                        //1 000 011 0 XXXXXXXX  BCC
+                        if(inst&0x0100) //BCS
+                        {
+                            if(C!=0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BCC
+                        {
+                            if(C==0)
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //0 000 011 1 XXXXXXXX  BLE
+                        //0 000 011 0 XXXXXXXX  BGT
+                        if(inst&0x0100) //BLE
+                        {
+                            result=0;
+                            if(N) result++;
+                            if(V) result++;
+                            if((result==1)||(Z))
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                        else //BGT
+                        {
+                            result=0;
+                            if(N) result++;
+                            if(V) result++;
+                            result&=1;
+                            if((result==1)||(Z))
+                            {
+                                dest=inst&0xFF;
+                                if(dest&0x80) dest|=0xFF00;
+                                dest<<=1;
+                                pc+=dest;
+                            }
+                        }
+                    }
+                    break;
+                }
+                case 0x4: //x 000 100 //JSR
+                {
                     //0 000 100 RRR DDDDDD  JSR
-                    //10 :09f7 0014         jsr pc, 28 <_fun0+0x10>
-                    //0 000 100 111 110 111 jsr pc,x(pc)
 
                     //tmp = dst
                     //push reg
@@ -626,6 +691,255 @@ unsigned int execute ( void )
                     write_register(7,dest);
                     break;
                 }
+
+
+//B 000 101 000 DDDDDD  CLR
+//B 000 101 001 DDDDDD  COM
+//B 000 101 010 DDDDDD  INC
+//B 000 101 011 DDDDDD  DEC
+//B 000 101 100 DDDDDD  NEG
+//B 000 101 101 DDDDDD  ADC
+//B 000 101 110 DDDDDD  SBC
+//B 000 101 111 DDDDDD  TST
+
+                case 5: //x 000 101
+                {
+                    switch((inst>>6)&0x7)
+                    {
+                        case 0x0: //x 000 101 000 CLR
+                        {
+                            dmode=(inst>>3)&7;
+                            dreg=(inst>>0)&7;
+                            daddr=get_xaddr(dmode,dreg,0);
+                            ddata=get_data(dmode,dreg,size,daddr);
+                            result=0;
+                            Z=1;
+                            N=0;
+                            C=0;
+                            V=0;
+                            set_new_psw();
+                            put_data(dmode,dreg,result,daddr,size);
+                            break;
+                        }
+                        case 0x1: //x 000 101 001 COM
+                        {
+                            if(inst&0x8000) //COMB
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(~ddata)&0xFF;
+                                Z=(~result)&0xFF;
+                                N=0;
+                                C=1;
+                                V=0;
+                                set_new_psw();
+                                result=(ddata&0xFF00)|(result&0xFF);
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            else //COM
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(ddata+1)&0xFFFF;
+                                Z=(~result)&0xFFFF;
+                                N=0;
+                                C=1;
+                                V=0;
+                                set_new_psw();
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            break;
+                        }
+                        case 0x2: //x 000 101 010 INC
+                        {
+                            if(inst&0x8000) //INCB
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(ddata+1)&0xFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x80;
+                                //C=not affected;
+                                V=(result==0x80);
+                                set_new_psw();
+                                result=(ddata&0xFF00)|(result&0xFF);
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            else //INC
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(ddata+1)&0xFFFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x8000;
+                                //C=not affected
+                                V=(result==0x8000);
+                                set_new_psw();
+                                //result&=0xFFFF;
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            break;
+                        }
+                        case 0x3: //x 000 101 011 DEC
+                        {
+                            if(inst&0x8000) //DECB
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(ddata-1)&0xFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x80;
+                                //C=not affected; //BUG IN DOCUMENTATION
+                                V=(result==0x7F); //BUG IN DOCUMENTATION
+                                set_new_psw();
+                                result=(ddata&0xFF00)|(result&0xFF);
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            else //DEC
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(ddata-1)&0xFFFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x8000;
+                                //C=not affected    //BUG IN DOCUMENTATION
+                                V=(result==0x7FFF); //BUG IN DOCUMENTATION
+                                set_new_psw();
+                                //result&=0xFFFF;
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            break;
+                        }
+                        case 0x4: //x 000 101 100 NEG
+                        {
+                            if(inst&0x8000) //NEGB
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(0-ddata)&0xFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x80;
+                                C=result;
+                                V=(result==0x80);
+                                set_new_psw();
+                                result=(ddata&0xFF00)|(result&0xFF);
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            else //NEG
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(0-ddata)&0xFFFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x8000;
+                                C=result;
+                                V=(result==0x8000);
+                                set_new_psw();
+                                //result&=0xFFFF;
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            break;
+                        }
+                        case 0x5: //x 000 101 101 ADC
+                        {
+                            if(inst&0x8000) //ADCB
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=ddata&0xFF;
+                                if(C) result++;
+                                Z=(~result)&0xFF;
+                                N=result&0x80;
+                                C=result&0x100;
+                                V=(result==0x80);
+                                set_new_psw();
+                                result=(ddata&0xFF00)|(result&0xFF);
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            else //ADC
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=ddata&0xFFFF;
+                                if(C) result++;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x8000;
+                                C=result&0x10000;
+                                V=(result==0x8000);
+                                set_new_psw();
+                                result&=0xFFFF;
+                                put_data(dmode,dreg,result,daddr,size);
+                            }
+                            break;
+                        }
+                        case 0x6: //x 000 101 110 SBC
+                        {
+                            break;
+                        }
+                        case 0x7: //x 000 101 111 TST
+                        {
+                            if(inst&0x8000) //TSTB
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(0-ddata)&0xFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x80;
+                                C=0;
+                                V=0;
+                                set_new_psw();
+                                //result=(ddata&0xFF00)|(result&0xFF);
+                                //put_data(dmode,dreg,result,daddr,size);
+                            }
+                            else //TST
+                            {
+                                dmode=(inst>>3)&7;
+                                dreg=(inst>>0)&7;
+                                daddr=get_xaddr(dmode,dreg,0);
+                                ddata=get_data(dmode,dreg,size,daddr);
+                                result=(0-ddata)&0xFFFF;
+                                Z=(~result)&0xFFFF;
+                                N=result&0x8000;
+                                C=0;
+                                V=0;
+                                set_new_psw();
+                                //result&=0xFFFF;
+                                //put_data(dmode,dreg,result,daddr,size);
+                            }
+                            break;
+                        }
+
+                        default:
+                        {
+                            printf("Error unknown opcode 0x%04X\n",inst);
+                            return(1);
+                        }
+                    }
+                    break;
+                }
+
                 default:
                 {
                     printf("Error unknown opcode 0x%04X\n",inst);
@@ -654,10 +968,11 @@ unsigned int execute ( void )
                 //24:   1d40 0006       mov 6(r5), r0
                 result=sdata&0xFF; //movb
                 if(result&0x80) result|=0xFF00; //sign extend
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
+                N=result&0x8000;
+                Z=(~result)&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
                 put_data(dmode,dreg,result,daddr,size);
             }
             else //MOV
@@ -668,10 +983,11 @@ unsigned int execute ( void )
                 //22:   1185            mov sp, r5
                 //24:   1d40 0006       mov 6(r5), r0
                 result=sdata; //mov
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
+                N=result&0x8000;
+                Z=(~result)&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
                 put_data(dmode,dreg,result,daddr,size);
             }
             break;
@@ -688,25 +1004,21 @@ unsigned int execute ( void )
             ddata=get_data(dmode,dreg,0,daddr);
             if(inst&0x8000) //CMPB
             {
-                result=(ddata&0xFF)-(sdata&0xFF);
-                newpsw=0;
-                if(result&0x80) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                if(result&0x100) newpsw|=C_FLAG;
-                if(((ddata&0x80)!=(sdata&0x80))&&((sdata&0x80)==(result&0x80)))
-                    newpsw|=V_FLAG;
-                set_new_psw(newpsw);
+                result=(sdata&0xFF)-(ddata&0xFF);
+                N=result&0x80;
+                Z=(~result)&0xFFFF&0xFF;
+                V=(((sdata)^ddata)&((~ddata)^result))&0x80;
+                C=result&0x100;
+                set_new_psw();
             }
             else //CMP
             {
-                result=ddata-sdata;
-                newpsw=0;
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                if(result&0x10000) newpsw|=C_FLAG;
-                if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
-                    newpsw|=V_FLAG;
-                set_new_psw(newpsw);
+                result=sdata-ddata;
+                N=result&0x8000;
+                Z=(~result)&0xFFFF&0xFFFF;
+                C=result&0x10000;
+                V=(((sdata)^ddata)&((~ddata)^result))&0x8000;
+                set_new_psw();
             }
             break;
         }
@@ -722,21 +1034,21 @@ unsigned int execute ( void )
             ddata=get_data(dmode,dreg,0,daddr);
             if(inst&0x8000)
             {
-                result=(ddata&sdata)&0xFF;
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x80) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
+                result=ddata&sdata;
+                N=result&0x80;
+                Z=(~result)&0xFFFF&0xFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
             }
             else //BIT
             {
                 result=ddata&sdata;
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
-                result&=0xFFFF;
-                put_data(dmode,dreg,result,daddr,0);
+                N=result&0x8000;
+                Z=(~result)&0xFFFF&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
             }
             break;
         }
@@ -754,21 +1066,23 @@ unsigned int execute ( void )
             {
                 result=(ddata&(~sdata))&0xFF;
                 if(result&0x80) result|=0xFF00; //sign extend
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
-                result&=0xFFFF;
+                N=result&0x8000;
+                Z=(~result)&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
+                //result&=0xFFFF;
                 put_data(dmode,dreg,result,daddr,0);
             }
             else
             {
                 result=(ddata&(~sdata))&0xFFFF;
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
-                result&=0xFFFF;
+                N=result&0x8000;
+                Z=(~result)&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
+                //result&=0xFFFF;
                 put_data(dmode,dreg,result,daddr,0);
             }
             break;
@@ -787,21 +1101,23 @@ unsigned int execute ( void )
             {
                 result=(ddata|sdata)&0xFF;
                 if(result&0x80) result|=0xFF00; //sign extend
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
-                result&=0xFFFF;
+                N=result&0x8000;
+                Z=(~result)&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
+                //result&=0xFFFF;
                 put_data(dmode,dreg,result,daddr,0);
             }
             else //BIS
             {
-                result=ddata|sdata;
-                newpsw=psw&(C_FLAG); //preserve C, clear V
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                set_new_psw(newpsw);
-                result&=0xFFFF;
+                result=(ddata|sdata)&0xFFFF;
+                N=result&0x8000;
+                Z=(~result)&0xFFFF;
+                V=0;
+                //C=not affected
+                set_new_psw();
+                //result&=0xFFFF;
                 put_data(dmode,dreg,result,daddr,0);
             }
             break;
@@ -818,29 +1134,24 @@ unsigned int execute ( void )
             ddata=get_data(dmode,dreg,0,daddr);
             if(inst&0x8000) //SUB
             {
-                //e000            sub r0, r0
                 result=ddata-sdata;
                 newpsw=0;
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                if(result&0x10000) newpsw|=C_FLAG;
-                if(((ddata&0x8000)!=(sdata&0x8000))&&((sdata&0x8000)==(result&0x8000)))
-                    newpsw|=V_FLAG;
-                set_new_psw(newpsw);
+                N=result&0x8000;
+                Z=(~result)&0xFFFF&0xFFFF;
+                V=(((sdata)^ddata)&((~ddata)^result))&0x8000;
+                C=result&0x10000;
+                set_new_psw();
                 result&=0xFFFF;
                 put_data(dmode,dreg,result,daddr,0);
             }
             else //ADD
             {
-                //6cf4 0004 0006  add 4(r3), 6(r4)
                 result=ddata+sdata;
-                newpsw=0;
-                if(result&0x8000) newpsw|=N_FLAG;
-                if(result==0) newpsw|=Z_FLAG;
-                if(result&0x10000) newpsw|=C_FLAG;
-                if(((ddata&0x8000)==(sdata&0x8000))&&((sdata&0x8000)!=(result&0x8000)))
-                    newpsw|=V_FLAG;
-                set_new_psw(newpsw);
+                N=result&0x8000;
+                Z=(~result)&0xFFFF&0xFFFF;
+                V=(((~sdata)^ddata)&((ddata)^result))&0x8000;
+                C=result&0x10000;
+                set_new_psw();
                 result&=0xFFFF;
                 put_data(dmode,dreg,result,daddr,0);
             }
