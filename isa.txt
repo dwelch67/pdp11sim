@@ -1,129 +1,11 @@
 
 
----- KA11 CENTRAL PROCESSOR ----
+ 5 4 3 2 1 0
++-+-+-+-+-+-+
+|M M M|R R R|
++-+-+-+-+-+-+
 
-General Registers -- The KA11 processor contains eight 16-bit general
-purpose registers.  These eight general purpose registers (referred
-to as R0,R1,...,R7) may be used as accumulators, as index registers,
-or as stack pointers.  One of these registers R7, is reserved as the
-program counter (PC).  Generally the PC holds the address of the
-next instruction, but it may point to data or to an address of data.
-The register R6 has the special function of processor stack pointer.
-
-Central Processor Status Register -- The Centra Processor Status Register
-(PS) contains information on the result of previous operations.  Four
-bits of the PS are assigned to monitoring different results of previous
-instructions.  These bits are as follows:
-  Z - if the result was zero
-  N - if the result was negative
-  C - if the operation resulted in a carry from the most significant bit
-  V - if the operation resulted in a arithmetic overflow
-
-FEDCBA9876543210
-xxxxxxxxxxxxNZVC
-
-Core Memory -- The PDP-11 allows both 16-bit word and 8-bit byte
-addressing.  The address space may be filled by core memory and
-peripheral device registers.  The top 4906 words generally are reserved
-for peripheral device registers.  The remainder of address space can
-be used for read-write core memory or read-only core memory.
-
-Interrupt Requests -- Devices that request interrupts on the bus
-request lines (BR7, BR6, BR5, BR4) can take advantage of the power
-and flexibility of the processor.  The entire instruction set is
-available for manipulating data and status registers.  When a device
-servicing program must be run, the task currently under way in the
-central processor is interrupted and the device service routine is
-initiated.  Once the device request has been satisfied, the processor
-returns to the interrupted task.
-
-In the PDP-11, the return address for the interrupted routine and
-the processor status word are held in a "stack".  A statck is a
-dynamic sequential list of data with special provisions for access
-from one end.  A stack is also called a "push down" or "LIFO" (Last-In
-First-Out) list.  Storage and retrieval from stacks is called "pushing"
-and "popping" respectively.
-
-In the PDP-11, a stack is automatically maintained by the hardware for
-interrupt processing.  Thus, higher level requests can interrupt the
-processing of lower level interrupt service, and automatically return
-control to the lower level interrupt service routines when the higher
-level servicing is completed.
-
-1.  Priorities permitting, the processor relinquishes the bus to that
-device.
-
-2.  When the device has control of the bus, it sends the processor an
-interrupt command with the address of the words in memory containing
-the address and status of the appropriate device service routine.
-
-3.  The processor then "pushes" first the current central processor
-status (PS) and then, the current program counter (PC) onto the
-processor stack.
-
-4. The new PC and PS (the "interrupt vector") are taken from the
-location specified by the device and th enext location, and the
-device service routine is begun.  Note that those opeartions all
-occur automatically and that no device-polling is required to determine
-which service routine to execute.
-
-5.
-
-6.  The device service routine can resume the interrupted process by
-executing the RTI (Return from Interrupt) instruction which "pops"
-the processor stack back into the PC and PS.
-
-7.  A device service routine can be interrupted in turn bya sufficiently
-high priority bus request at any time after completion of its first
-instruction.
-
-8.  If such an interrupt occurs, the PC and PS of the device service
-routine are automatically pushed into the stack and the new device
-routine initiated as above.  This "nesting" of priority interrupts
-can go on to any level, limited only by the core available for the
-stack.  More commonly this process will nest only four levels deep
-since there are four levels of BR signals.
-
-The Stack - The stack pointer points at the element that is on
-the top of the stack.  Pushing something on the stack involves
-first decrementing the stack pointer address by 2 then writing to
-memory at the address specified by the new stack pointer.  Popping
-something off of the stack involves reading from memory at the address
-specified by the stack pointer then adding 2 to the address in the
-stack pointer register.
-
--- ADDRESSING MODES --
-
-Most data in a program is structured in some way -- in a table, in a
-stack, in a table of addresses, or perhaps a small set of frequenty
-used variables local to a limited region of a program.  The PDP-11
-handles these common data structures with addressing modes specifically
-designed for each kind of access.  In addition, addressing for unstructured
-data is general enough to permit direct random access to all of core.
-Memory is not proken up into pages and fields.
-
-Addressing in the PDP-11 is done through the general registers.  Programs
-requiring several stacks can use the general registers for stack pointers.
-Those requiring many local variables can use general registers as
-accumulators.  The general registers can be used interchangeably as index
-registers or sequential list pointers to access tabular data.  Address
-arithmetic may be done directly in the general registers.
-
-ADDRESS FIELDS
-PDP-11 instruction words contain a 6-bit address field divided into two
-subfields selecting the general register and the mode generating the
-effective address.
-
-FEDCBA9876543210
-xxxxxxxxxxMMMRRR
-MMM mode
-RRR register
-
-The register subfield specifies which of the eight general registers is
-to be used in the address calculation.  The mode subfield indicates how
-this register is to be used in determining the operand.  These modes will
-be described in the following paragraphs.
-
+543210
 
 000nnn  Rn      Register                The operand is in Rn
 001nnn  (Rn)    Register deferred       Rn contains the address of the operand
@@ -135,109 +17,14 @@ be described in the following paragraphs.
 111nnn  @X(Rn)  Index deferred          Rn+X is the address of the address
 
 When the PC is used as a general register, four of the addressing modes
-have these results
+have these results:
 
-
+543210
 
 010111  #immed  Immediate               The operand is contained in the instruction
 011111  (#addr) Absolute                The absolute address is contained in the instruction
 110111  addr    Relative                An extra word in the instruction is added to PC+2 to give the address
 111111  (a)     Relative Deferred       An extra word in the instruction is added to PC+2 to give the address of the address
-
-
-
-ADD src,dst
-
-FEDCBA9876543210
-0110SSSSSSDDDDDD
-
-Operation:
-    dst = dst + src
-
-Condition Codes:
-    Z: set if result = 0; cleared otherwise
-    N: set if result < 0; cleared otherwise
-    C: set if there was a carry from the most significant bit of the
-        result; cleared otherwise
-    V: set if there was an arithmetic (signed) overflow as a result of
-        the operation, that is, if both operands were of the same sign
-        and the result was of the opposite sign; cleared otherwise
-
-Description:  Adds the source operand to the destination operand and
-stores the result at the destination address.  The original contents of
-the destination are lost.  The contents of the source are not affected.
-
-
-
-CMP(B) src,dst
-
-FEDCBA9876543210
-B010SSSSSSDDDDDD
-
-Operation:
-    result = dst - src  [result = dst + (~src) + 1]
-
-Condition Codes:
-    Z: set if result = 0; cleared otherwise
-    N: set if result < 0; cleared otherwise
-    C: set if there was a carry from the most significant bit of the
-        result; cleared otherwise
-    V: set if there was an arithmetic (signed) overflow as a result of
-        the operation, that is, if both operands were of the same sign
-        and the result was of the opposite sign; cleared otherwise
-
-Description:  Arithmetically compares the source and destination operands.
-Affects neither operand.  The only action is to set the condition codes
-appropriately.
-
-
-
-
-
-
-MOV src,dst
-
-FEDCBA9876543210
-0001SSSSSSDDDDDD
-
-Operation:
-    dst = src
-
-Condition Codes:
-    Z: set if src = 0; cleared otherwise
-    N: set if src < 0; cleared otherwise
-    C: not affected
-    V: cleared
-
-Description:  Moves the source operand to the destination location.  The
-previous contents of the destination are lost.  The contents of the
-source are not affected.
-
-The MOV instruction is a generalization of load, store, setup, push, pop,
-and interregister transfer operations.
-
-
-SUB src,dst
-
-FEDCBA9876543210
-0111SSSSSSDDDDDD
-
-Operation:
-    dst = dst - src  [dst = dst + (~src) + 1]
-
-Condition Codes:
-    Z: set if result = 0; cleared otherwise
-    N: set if result < 0; cleared otherwise
-    C: set if there was a carry from the most significant bit of the
-        result; cleared otherwise
-    V: set if there was an arithmetic (signed) overflow as a result of
-        the operation, that is, if both operands were of the same sign
-        and the result was of the opposite sign; cleared otherwise
-
-Description:  Subtracts the source operand from the destination operand
-and stores the result at the destination address.  The original contents
-of the destination are lost.  The contents of the source are not affected.
-
 
 
 
