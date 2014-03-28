@@ -1,4 +1,190 @@
 
+for gnu assembler use $ instead of # for an immediate...
+
+    add r0,@$7
+    add r0,*$7
+    add $7,r0
+
+instead of
+
+    add r0,@#7
+    add r0,@#7
+    add #7,r0
+
+
+.globl _start
+_start:
+    add r0,r0
+    add r0,r1
+    add r0,r2
+    add r3,r4
+    add 4(r3),6(r4)
+    sub r0,r0
+    bis r0,r1
+    bisb r0,r1
+    cmp r0,r1
+    cmpb r0,r1
+    mov r0,r1
+    movb r0,r1
+
+    add r0,r1
+    add r0,r2
+    add r0,@$7
+    add r0,*$7
+    add $7,r0
+    add r0,(r2)
+    add r3,r4
+    add 4(r3),6(r4)
+    sub r0,r0
+    mov r5,-(sp)
+    mov (sp)+,r5
+    rts pc
+
+
+
+start.elf:     file format a.out-pdp11
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:   6000            add r0, r0
+   2:   6001            add r0, r1
+   4:   6002            add r0, r2
+   6:   60c4            add r3, r4
+   8:   6cf4 0004 0006  add 4(r3), 6(r4)
+   e:   e000            sub r0, r0
+  10:   5001            bis r0, r1
+  12:   d001            bisb    r0, r1
+  14:   2001            cmp r0, r1
+  16:   a001            cmpb    r0, r1
+  18:   1001            mov r0, r1
+  1a:   9001            movb    r0, r1
+  1c:   6001            add r0, r1
+  1e:   6002            add r0, r2
+  20:   601f 0007       add r0, *$7
+  24:   601f 0007       add r0, *$7
+  28:   65c0 0007       add $7, r0
+  2c:   600a            add r0, (r2)
+  2e:   60c4            add r3, r4
+  30:   6cf4 0004 0006  add 4(r3), 6(r4)
+  36:   e000            sub r0, r0
+  38:   1166            mov r5, -(sp)
+  3a:   1585            mov (sp)+, r5
+  3c:   0087            rts pc
+
+
+
+
+    add 4(r3),6(r4)
+
+  30:   6cf4 0004 0006  add 4(r3), 6(r4)
+
+so the left operand (source) gets the first additional word and the
+right (destination) second
+
+
+   2:   6001            add r0, r1
+
+0110000000000001
+0 110 000 000 000 001
+source mode 000 register, r0
+dest mode 000 register, r1
+
+load r0 to opa
+load r1 to opb
+add
+store result to r1
+
+  28:   65c0 0007       add $7, r0
+0110010111000000
+0 110 010 111 000 000
+
+source mode 010 autoincrement indirect (pc)+
+dest mode 000 register, r0
+
+load (pc) into opa
+add pc = pc + 2
+load r1 into opb
+add
+store result to r1
+
+
+  2c:   600a            add r0, (r2)
+0110000000001010
+0 110 000 000 001 010
+
+source mode 000 register, r0
+dest mode 001, register deferred, r2
+
+load (r2) into opa
+load r0 into opb
+add
+store result to (r2)
+
+
+
+  20:   601f 0007       add r0, *$7
+
+0110000000011111
+0 110 000 000 011 111
+source mode 000 register, r0
+dest mode 011 autoincrement deferred @(pc)+
+
+load r0 into opa
+load (pc) into daddr
+load (daddr) into opb
+pc = pc + 2
+
+  38:   1166            mov r5, -(sp)
+
+0 001 000 101 100 100
+
+source mode 000, register r5
+dest mode 100, -(sp)
+
+load r5 into opa
+sp = sp - 2
+mov result = opa
+store result to (sp)
+
+  3a:   1585            mov (sp)+, r5
+
+0 001 010 110 000 101
+
+src mode 010 (sp)+
+dst mode 000 register r5
+
+load (sp) into opa
+sp = sp + 2
+mov result = opa
+store result to r5
+
+
+  30:   6cf4 0004 0006  add 4(r3), 6(r4)
+
+0110110011110100
+0 110 110 011 110 100
+
+src mode 6 (reg)+imm, r3
+dst mode 6 (reg)+imm, r4
+
+load (pc) into saddr
+pc = pc + 2
+saddr = r3 + saddr
+load (saddr) into opa
+load (pc) into daddr
+pc = pc + 2
+daddr = r4 + daddr
+load (daddr) into opb
+result = opa + opb
+store (daddr) = result
+
+
+
+
+
+
 
 
 1000
